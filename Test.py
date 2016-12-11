@@ -38,9 +38,9 @@ def test(train_settings, data_settings, input_settings, model_settings):
         sequences["outputs"] = tf.reshape(sequenceOut, [contextT])
 
     # MODEL
-    model = LyricsPredictor(model_settings, vocab.size + 1) # Include EOS token
+    model = LyricsPredictor(model_settings, vocab.size + 1, False) # Include EOS token
     model.inference(key, context, sequences, input_settings["num_enqueue_threads"])
-    loss, mean_cross_loss, sum_cross_loss, cross_loss, output_num = model.loss(model_settings["l2_regularisation"])
+    loss, mean_cross_loss, sum_cross_loss, output_num = model.loss(model_settings["l2_regularisation"])
 
     # Monitor the loss.
     global_step = tf.get_variable('global_step', [],
@@ -83,16 +83,15 @@ def test(train_settings, data_settings, input_settings, model_settings):
 
     summary_writer = tf.summary.FileWriter("log", sess.graph.as_graph_def(add_shapes=True))
 
-    inferenceOps = [loss, mean_cross_loss, sum_cross_loss, cross_loss, output_num]
+    inferenceOps = [loss, mean_cross_loss, sum_cross_loss, output_num]
 
     current_time = time.time()
     logprob_sum = 0.0
     character_sum = 0
     iteration = 0
     while True:
-        # Step through batches, perform training or inference...
         try:
-            [l, mcl, scl, cl, nb] = sess.run(inferenceOps)
+            [l, mcl, scl, nb, summary] = sess.run(inferenceOps + [summary_op])
         except tf.errors.OutOfRangeError:
             print("Finished testing!")
             break
@@ -106,8 +105,7 @@ def test(train_settings, data_settings, input_settings, model_settings):
         character_sum +=  nb # Add up how many characters were in the batch
 
         print(l, mcl, scl)
-        summary_str = sess.run(summary_op)
-        summary_writer.add_summary(summary_str, global_step=int(iteration))
+        summary_writer.add_summary(summary, global_step=int(iteration))
         iteration += 1
 
         print("Bit-per-character: " + str(logprob_sum / character_sum))

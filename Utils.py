@@ -44,4 +44,11 @@ def cleanup(train_settings, model=True, log=True, dataset=False):
         shutil.rmtree(train_settings["log_dir"])
         os.makedirs(train_settings["log_dir"])
     if dataset:
-        os.remove("datasetSplit.pkl")
+        if os.path.exists("datasetSplit.pkl"):
+            os.remove("datasetSplit.pkl")
+
+def prepareFolders(train_settings):
+    if not os.path.exists(train_settings["checkpoint_dir"]):
+        os.makedirs(train_settings["checkpoint_dir"])
+    if not os.path.exists(train_settings["log_dir"]):
+        os.makedirs(train_settings["log_dir"])

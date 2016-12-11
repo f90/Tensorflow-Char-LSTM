@@ -1,38 +1,35 @@
 import tensorflow as tf
-import functools
 import numpy as np
-import Utils
 
 class LyricsPredictor:
 
-    def __init__(self, model_settings, vocab_size):
+    def __init__(self, model_settings, vocab_size, training=True):
 
         # Set parameters
         self.batch_size = model_settings["batch_size"]
         self.lstm_size = model_settings["lstm_size"]
         self.num_unroll = model_settings["num_unroll"]
         self.num_layers = model_settings["num_layers"]
-        self.dropout = model_settings["dropout"]
+        self.input_dropout = model_settings["input_dropout"]
+        self.output_dropout = model_settings["output_dropout"]
 
         self.vocab_size = vocab_size
+
+        if not training:
+            self.input_dropout = 0.0
+            self.output_dropout = 0.0
 
     def inference(self, key, context, sequences, num_enqueue_threads):
         # RNN cells and states
         cells = list()
         initial_states = dict()
         for i in range(0, self.num_layers):
-            cell = tf.nn.rnn_cell.BasicLSTMCell(num_units=self.lstm_size)
-            if self.dropout > 0.0:
-                cell = tf.nn.rnn_cell.DropoutWrapper(cell,input_keep_prob=1.0, output_keep_prob=1-self.dropout) # We keep inputs due to one-hot vector representation
+            cell = tf.contrib.rnn.LSTMBlockCell(num_units=self.lstm_size) # Block LSTM version gives better performance #TODO Add linear projection option
+            cell = tf.nn.rnn_cell.DropoutWrapper(cell,input_keep_prob=1-self.input_dropout, output_keep_prob=1-self.output_dropout)
             cells.append(cell)
-            initial_states["lstm_state_c_" + str(i)] = tf.zeros(cell.state_size.c, dtype=tf.float32)
-            initial_states["lstm_state_h_" + str(i)] = tf.zeros(cell.state_size.h, dtype=tf.float32)
+            initial_states["lstm_state_c_" + str(i)] = tf.zeros(cell.state_size[0], dtype=tf.float32)
+            initial_states["lstm_state_h_" + str(i)] = tf.zeros(cell.state_size[1], dtype=tf.float32)
         cell = tf.nn.rnn_cell.MultiRNNCell(cells)
-        #initial_states = cell.zero_state(batch_size=self.batch_size,dtype=tf.float32)
-        #initial_states_dict, _ = Utils.convert_to_dict(initial_states)
-        #initial_states = {"lstm_state_c": tf.zeros(cell.state_size[0], dtype=tf.float32),
-        #                  "lstm_state_h": tf.zeros(cell.state_size[0], dtype=tf.float32)}
-
 
         # BATCH INPUT
         self.batch = tf.contrib.training.batch_sequences_with_states(
@@ -49,6 +46,7 @@ class LyricsPredictor:
         targets = self.batch.sequences["outputs"]
 
         # Convert input into one-hot representation (from single integers indicating character)
+        print(self.vocab_size)
         embedding = tf.constant(np.eye(self.vocab_size), dtype=tf.float32)
         inputs = tf.nn.embedding_lookup(embedding, inputs)
 
@@ -81,8 +79,8 @@ class LyricsPredictor:
         # RNN cells and states
         cells = list()
         for i in range(0, self.num_layers):
-            cell = tf.nn.rnn_cell.BasicLSTMCell(num_units=self.lstm_size)
-            #cell = tf.nn.rnn_cell.DropoutWrapper(cell,input_keep_prob=1.0, output_keep_prob=1.0) # Added so that parameter restoring works
+            cell = tf.contrib.rnn.LSTMBlockCell(num_units=self.lstm_size) # Block LSTM version gives better performance #TODO Add linear projection option
+            cell = tf.nn.rnn_cell.DropoutWrapper(cell,1.0,1.0) # No dropout during sampling
             cells.append(cell)
         cell = tf.nn.rnn_cell.MultiRNNCell(cells)
         self.initial_states = cell.zero_state(batch_size=1,dtype=tf.float32)
@@ -124,8 +122,7 @@ class LyricsPredictor:
             vars = tf.trainable_variables()
             l2_loss = tf.contrib.layers.apply_regularization(tf.contrib.layers.l2_regularizer(l2_regularisation), weights_list=vars)
 
-
             loss = mean_cross_loss + l2_loss
             tf.summary.scalar('mean_batch_cross_entropy_loss', mean_cross_loss)
             tf.summary.scalar('mean_batch_loss', loss)
-        return loss, mean_cross_loss, sum_cross_loss, self.cross_loss, output_num
+        return loss, mean_cross_loss, sum_cross_loss, output_num

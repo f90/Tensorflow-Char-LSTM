@@ -1,18 +1,14 @@
-import tensorflow as tf
 import csv
 import re
-import codecs
-import json
-import numpy as np
 import cPickle as pickle
 import os
 import random
-import sacred
+
 from Vocabulary import Vocabulary
 
 import SequenceHandler
 
-def readLyrics(csvPath, vocabPath, indices=None):
+def readLyrics(csvPath, vocabPath, indices=None, convert2IndicesAndAddEOS=True):
     '''
     Reads in lyrics csv, optionally returns only a subset
     :param csvPath:
@@ -24,6 +20,9 @@ def readLyrics(csvPath, vocabPath, indices=None):
 
     # Save vocab
     vocab.save(vocabPath)
+
+    wordCount = dict()
+    totalWordCount = 0
 
     # Read in CSV lyrics line by line, build Tensor for each
     data = list()
@@ -38,20 +37,18 @@ def readLyrics(csvPath, vocabPath, indices=None):
         i=0
         for row in reader:
             i+=1
-            if(i%100==0): print i
+            if(i%10000==0): print i
             # Prepare lyrics
-            lyrics = preprocessLyrics(row[lyricsIndex]) # Append and preprocess
+            seq = preprocessLyrics(row[lyricsIndex]) # Append and preprocess
 
-            # Convert chars to int
-            seq = vocab.char2index(lyrics)
-            if len(seq) > 40000:
-                print('WARNING')
-
-            # Add sequence-end token:
-            seq.append(vocab.size)
+            if convert2IndicesAndAddEOS:
+                # Convert chars to int
+                seq = vocab.char2index(seq)
+                # Add sequence-end token:
+                seq.append(vocab.size)
 
             # Write lyrics
-            data.append((row[artistIndex].lower().strip(), seq))
+            data.append([row[artistIndex].lower().strip(), seq])
 
     if indices is not None:
         return data[indices], vocab

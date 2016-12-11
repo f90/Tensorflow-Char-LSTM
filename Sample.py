@@ -1,6 +1,5 @@
 import tensorflow as tf
 import numpy as np
-import sys
 
 from Model import LyricsPredictor
 from Vocabulary import Vocabulary
@@ -39,15 +38,15 @@ def sample(train_settings, data_settings, input_settings, model_settings):
     sess.run(init_op)
 
     # CHECKPOINTING
-    # Load pretrained model to sample from
+    # Load pretrained model to  sample
     latestCheckpoint = tf.train.latest_checkpoint(train_settings["checkpoint_dir"])
-    restorer = tf.train.Saver(tf.all_variables(), write_version=tf.train.SaverDef.V2)
+    restorer = tf.train.Saver(tf.global_variables(), write_version=tf.train.SaverDef.V2)
     restorer.restore(sess, latestCheckpoint)
     print('Pre-trained model restored')
 
     inference = [probs, state]
 
-    current_seq = "i "
+    current_seq = "never"
     current_seq_ind = vocab.char2index(current_seq)
 
     # Warm up RNN with initial sequence
